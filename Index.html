@@ -1,134 +1,448 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>HamsterInvest</title>
-<style>
-body { font-family: Arial; margin: 20px; }
-.back-arrow { position: fixed; top: 10px; left: 10px; cursor: pointer; font-size: 20px; display:none; }
-#dashboard, #crypto-view { margin-top: 50px; }
-button { margin: 3px; padding: 5px; }
-.crypto-buttons div { margin-top:10px; }
-</style>
+  <meta charset="utf-8"/>
+  <title>HamsterInvest</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:16px;background:#f7f7f9;color:#222}
+    header{display:flex;align-items:center;gap:12px}
+    .back-arrow{cursor:pointer;font-size:20px;display:none}
+    h1{margin:0 0 10px}
+    .card{background:white;padding:12px;margin:10px 0;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+    button{padding:8px 10px;margin:4px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer}
+    input,textarea{padding:8px;width:100%;box-sizing:border-box;border:1px solid #ccc;border-radius:6px;margin:6px 0}
+    .crypto-list{display:flex;flex-wrap:wrap;gap:6px}
+    .crypto-btn{padding:6px 8px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    pre{white-space:pre-wrap;background:#f1f1f1;padding:8px;border-radius:6px}
+    nav{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+    .hidden{display:none}
+  </style>
 </head>
 <body>
+  <header>
+    <div class="back-arrow" id="backBtn" onclick="showDashboard()">⬅</div>
+    <h1>HamsterInvest</h1>
+  </header>
 
-<button class="back-arrow" onclick="showDashboard()">⬅</button>
-<h1>HamsterInvest</h1>
+  <!-- AUTH: register/generate seed & login by seed -->
+  <div id="auth" class="card">
+    <div id="regForm">
+      <h3>Rekisteröidy</h3>
+      <label>Nimi (näkyvä):</label>
+      <input id="regName" placeholder="Esim. Olli"/>
+      <button onclick="registerUser()">Luo tili ja 12-sanaan seed</button>
+      <div style="margin-top:8px;color:#555">Rekisteröityessä luodaan automaattisesti 12-sanan seed joka toimittaa kirjautumisen.</div>
+    </div>
 
-<div id="dashboard">
-  <h2>Wallet</h2>
-  <div id="wallet-display"></div>
-  <h2>Portfolio / Sijoitukset</h2>
-  <div id="portfolio-display"></div>
-  <h2>Kryptot</h2>
-  <div id="crypto-buttons"></div>
-</div>
+    <hr/>
 
-<div id="crypto-view" style="display:none;">
-  <h2 id="crypto-title"></h2>
-  <div id="crypto-wallet"></div>
-  <div id="crypto-portfolio"></div>
-  <button onclick="buyCryptoView()">Osta</button>
-  <button onclick="buyInvestmentView()">Osta sijoitus</button>
-  <button onclick="sellInvestmentView()">Myy sijoitus</button>
-  <button onclick="withdrawView()">Nosta</button>
-</div>
+    <div id="loginForm">
+      <h3>Kirjaudu seedillä</h3>
+      <textarea id="seedInput" placeholder="Kirjoita 12 sanaa välilyönnillä"></textarea>
+      <button onclick="loginBySeed()">Kirjaudu seedillä</button>
+    </div>
+  </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- Main dashboard -->
+  <div id="mainUI" class="hidden">
+    <div class="card">
+      <strong>Käyttäjä:</strong> <span id="userNameDisplay"></span>
+      <button style="float:right" onclick="logout()">Logout</button>
+      <div style="clear:both"></div>
+    </div>
 
-<script>
-// Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyATO0586cwwqxxV0h1t16WrKfLgbXsy0-g",
-  authDomain: "henrybankki-ja-hamster-exc.firebaseapp.com",
-  projectId: "henrybankki-ja-hamster-exc",
-  storageBucket: "henrybankki-ja-hamster-exc.firebasestorage.app",
-  messagingSenderId: "931698320471",
-  appId: "1:931698320471:web:b7736abed3c840f9e3ef12",
-  measurementId: "G-W603PB8QNK"
-};
-firebase.initializeApp(firebaseConfig);
+    <div id="summary" class="card">
+      <h3>Wallet & Portfolio</h3>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1">
+          <h4>Wallet (krypto)</h4>
+          <pre id="walletDisplay"></pre>
+        </div>
+        <div style="flex:1">
+          <h4>Sijoitukset</h4>
+          <pre id="portfolioDisplay"></pre>
+        </div>
+      </div>
+    </div>
 
-// Admin seed
-let adminSeed = "watti hamsteri häkki jauhomato auringonkukanSiemen karvaputkilo mökki juoksupyörä laiska ihana hyväluonteinen paras";
+    <div class="card">
+      <h3>Kryptot — valitse tarkasteltava</h3>
+      <div id="cryptoButtons" class="crypto-list"></div>
+    </div>
 
-// Kryptot nimet
-let cryptos = ["WATTI","WUF","JAUHOMATO","AURINKOSIEMEN","HÄKKI","JUOKSUPYÖRÄ","KARVAPUTKILO",
-"MÖKKI","LAISKA","IHALA","HYVÄLUONTEINEN","PARAS","SIIRAPPISUKKA","KARKKUKUPPI","RÄPÄTYS","PÖRRÖ","NÖTTI",
-"HÖYHEN","PIKKUHIIRI","MURUSEN","TUPLAKUPPI","RAPU","PÖYTÄKYNÄ","PUNAINENPOMMI","KESTOKUPPI","SAKKI",
-"NOKKELI","HIIRULAINEN","SUKLAAHIIRI","TALVIHIIRI","KEVÄTHÄKKI","LEIKKIKUPPI","PIENIHAMSTERI",
-"SIPSI","MÖRRIMÖLLI","PAKSU","HUPI"];
+    <div id="cryptoView" class="card hidden">
+      <h3 id="cryptoTitle"></h3>
+      <div><strong>Osoite (vain kyseiselle kryptolle):</strong> <span id="cryptoAddress"></span></div>
+      <div style="margin-top:8px">
+        <div id="priceDisplay"><strong>Hinta:</strong> <span id="cryptoPrice">—</span> €</div>
+        <div style="margin-top:8px">
+          <label>Osta määrä</label>
+          <input id="buyAmount" type="number" value="1" min="0.0001" step="0.0001"/>
+          <button onclick="startBuy()">Osta (pyydä HenryBankista vahvistus)</button>
+        </div>
+        <div style="margin-top:8px">
+          <label>Osta sijoitusta (määrä)</label>
+          <input id="investAmount" type="number" value="1" min="0.0001" step="0.0001"/>
+          <button onclick="buyInvestment()">Osta sijoitus</button>
+        </div>
+        <div style="margin-top:8px">
+          <label>Myy sijoitusta (määrä)</label>
+          <input id="sellAmount" type="number" value="1" min="0.0001" step="0.0001"/>
+          <button onclick="sellInvestment()">Myy sijoitus (palautuu cryptoiksi walletiin)</button>
+        </div>
+        <div style="margin-top:8px">
+          <label>Nosta (muuta kryptot euroiksi HenryBankkiin)</label>
+          <input id="withdrawAmount" type="number" value="1" min="0.0001" step="0.0001"/>
+          <button onclick="startWithdraw()">Nosta (avataan HenryBankki)</button>
+        </div>
+        <div style="margin-top:12px"><button onclick="showDashboard()">Takaisin</button></div>
+      </div>
+    </div>
 
-// Wallet ja portfolio
-let wallet = {}; let portfolio = {};
-cryptos.forEach(c => { wallet[c]=Math.floor(Math.random()*100); portfolio[c]=0; });
+    <div id="transactionsCard" class="card">
+      <h3>Viimeisimmät transaktiot</h3>
+      <div id="txList">Ei transaktioita vielä.</div>
+    </div>
+  </div>
 
-// Näkymän hallinta
-let currentCrypto = null;
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-// Dashboard päivitys
-function updateDashboard(){
-    document.getElementById('wallet-display').innerHTML=JSON.stringify(wallet,null,2);
-    document.getElementById('portfolio-display').innerHTML=JSON.stringify(portfolio,null,2);
-}
+  <script>
+  /***** Firebase-init (sinun config) *****/
+  const firebaseConfig = {
+    apiKey: "AIzaSyATO0586cwwqxxV0h1t16WrKfLgbXsy0-g",
+    authDomain: "henrybankki-ja-hamster-exc.firebaseapp.com",
+    projectId: "henrybankki-ja-hamster-exc",
+    storageBucket: "henrybankki-ja-hamster-exc.firebasestorage.app",
+    messagingSenderId: "931698320471",
+    appId: "1:931698320471:web:b7736abed3c840f9e3ef12",
+    measurementId: "G-W603PB8QNK"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
 
-// Luo napit kryptoille
-function createButtons(){
-    let container=document.getElementById('crypto-buttons');
-    cryptos.forEach(c=>{
-        let btn=document.createElement('button');
-        btn.textContent=c;
-        btn.onclick=()=>showCryptoView(c);
-        container.appendChild(btn);
+  /***** Asetukset ja data-mallit *****/
+  // 37 krypton lista (voit vaihtaa nimet halutessasi)
+  const cryptos = [
+    "WATTI","WUF","COIN1","COIN2","COIN3","COIN4","COIN5","COIN6","COIN7","COIN8",
+    "COIN9","COIN10","COIN11","COIN12","COIN13","COIN14","COIN15","COIN16","COIN17","COIN18",
+    "COIN19","COIN20","COIN21","COIN22","COIN23","COIN24","COIN25","COIN26","COIN27","COIN28",
+    "COIN29","COIN30","COIN31","COIN32","COIN33","COIN34","COIN35"
+  ];
+
+  // Adminin seed (kovakoodattu)
+  const adminSeed = "watti hamsteri häkki jauhomato auringonkukanSiemen karvaputkilo mökki juoksupyörä laiska ihana hyväluonteinen paras";
+
+  // paikalliset tilamuuttujat
+  let currentUser = null; // sisältää käyttäjän doc id ja tiedot
+  let unsubscribeTxListener = null;
+
+  /***** Rekisteröinti ja seedin generointi *****/
+  function generateSeed() {
+    // yksinkertainen 12-sanan seed - generaattori (valitsee sanat perus-sanastosta)
+    const pool = ["watti","hamsteri","häkkI","jauhomato","aurinkosiemen","karvaputkilo","mökki","juoksupyörä","laiska","ihana","hyväluonteinen","paras","pieni","sukka","karkki","pörri"];
+    let seed = [];
+    for(let i=0;i<12;i++){
+      seed.push(pool[Math.floor(Math.random()*pool.length)]);
+    }
+    return seed.join(" ");
+  }
+
+  async function registerUser(){
+    const name = document.getElementById('regName').value || ("user"+Date.now());
+    const seed = generateSeed();
+    // luodaan user-dokumentti Firestoreen
+    const userDoc = {
+      name,
+      seed,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      wallet: {}, // täytetään alla initial-saldoilla
+      portfolio: {},
+      addresses: {}
+    };
+    // initialize balances & addresses
+    cryptos.forEach(c => {
+      userDoc.wallet[c] = Math.floor(Math.random()*20); // satunnainen aloitussaldo
+      userDoc.portfolio[c] = 0;
+      userDoc.addresses[c] = "addr_"+c+"_"+Math.random().toString(36).substring(2,10);
     });
-}
 
-// Näytä kryptosivu
-function showCryptoView(c){
-    currentCrypto=c;
-    document.getElementById('crypto-title').textContent=c;
-    document.getElementById('crypto-wallet').innerHTML="Wallet: "+wallet[c];
-    document.getElementById('crypto-portfolio').innerHTML="Sijoitus: "+portfolio[c];
-    document.getElementById('dashboard').style.display="none";
-    document.getElementById('crypto-view').style.display="block";
-    document.querySelector('.back-arrow').style.display="inline";
-}
+    // write to users collection
+    const docRef = await db.collection('users').add(userDoc);
+    alert("Tili luotu! Tallenna tämä 12 sanaa: \\n\\n" + seed + "\\n\\nKirjaudu seedilläsi.");
+    // autologin
+    currentUser = {id: docRef.id, ...userDoc};
+    // store minimal data locally for session
+    localStorage.setItem('hamster_user_id', docRef.id);
+    showMainUI();
+    listenUserTransactions(docRef.id);
+  }
 
-// Palaa dashboardiin
-function showDashboard(){
-    document.getElementById('crypto-view').style.display="none";
-    document.getElementById('dashboard').style.display="block";
-    document.querySelector('.back-arrow').style.display="none";
-    updateDashboard();
-}
+  /***** Login by seed *****/
+  async function loginBySeed(){
+    const seed = document.getElementById('seedInput').value.trim();
+    if(!seed){ alert("Anna seed."); return; }
+    // query firestore for user with same seed
+    const q = await db.collection('users').where('seed','==',seed).get();
+    if(q.empty){ alert("Seed ei löydy."); return; }
+    const doc = q.docs[0];
+    currentUser = {id: doc.id, ...doc.data()};
+    localStorage.setItem('hamster_user_id', doc.id);
+    showMainUI();
+    listenUserTransactions(doc.id);
+  }
 
-// Toiminnot kryptosivulla
-function buyCryptoView(){ wallet[currentCrypto]+=10; updateCryptoView(); redirectToHenryBank(10); }
-function buyInvestmentView(){ portfolio[currentCrypto]+=5; updateCryptoView(); }
-function sellInvestmentView(){ 
-    if(portfolio[currentCrypto]>=2){ portfolio[currentCrypto]-=2; wallet[currentCrypto]+=2; } 
-    updateCryptoView(); 
-}
-function withdrawView(){
-    if(wallet[currentCrypto]>=5){ wallet[currentCrypto]-=5; updateCryptoView(); redirectToHenryBank(5); }
-}
+  /***** Logout *****/
+  function logout(){
+    localStorage.removeItem('hamster_user_id');
+    currentUser = null;
+    // stop listener
+    if(unsubscribeTxListener){ unsubscribeTxListener(); unsubscribeTxListener = null; }
+    document.getElementById('mainUI').classList.add('hidden');
+    document.getElementById('auth').classList.remove('hidden');
+  }
 
-// Päivitä kryptosivu
-function updateCryptoView(){
-    document.getElementById('crypto-wallet').innerHTML="Wallet: "+wallet[currentCrypto];
-    document.getElementById('crypto-portfolio').innerHTML="Sijoitus: "+portfolio[currentCrypto];
-}
+  /***** UI show/hide *****/
+  function showMainUI(){
+    document.getElementById('auth').classList.add('hidden');
+    document.getElementById('mainUI').classList.remove('hidden');
+    document.getElementById('userNameDisplay').textContent = currentUser.name;
+    refreshUserDataFromServer();
+    renderCryptoButtons();
+    refreshTxList();
+  }
 
-// Nosto redirect HenryBankkiin
-function redirectToHenryBank(amount){
-    let token=Math.random().toString(36).substring(2,15);
-    window.location.href="https://henrybank-bw4y.onrender.com?token="+token+"&amount="+amount+"&crypto="+currentCrypto;
-}
+  /***** Refresh user doc from server to get latest balances */
+  async function refreshUserDataFromServer(){
+    if(!currentUser) return;
+    const doc = await db.collection('users').doc(currentUser.id).get();
+    if(!doc.exists) return;
+    currentUser = {id: doc.id, ...doc.data()};
+    updateDisplays();
+  }
 
-// Init
-updateDashboard(); createButtons();
-</script>
+  function updateDisplays(){
+    document.getElementById('walletDisplay').textContent = JSON.stringify(currentUser.wallet,null,2);
+    document.getElementById('portfolioDisplay').textContent = JSON.stringify(currentUser.portfolio,null,2);
+  }
+
+  /***** Render crypto buttons (dashboard) */
+  function renderCryptoButtons(){
+    const container = document.getElementById('cryptoButtons');
+    container.innerHTML = '';
+    cryptos.forEach(c=>{
+      const btn = document.createElement('button');
+      btn.className = 'crypto-btn';
+      btn.textContent = c;
+      btn.onclick = ()=>openCryptoView(c);
+      container.appendChild(btn);
+    });
+  }
+
+  /***** Open single crypto view (näkymä per kryptolle) */
+  function openCryptoView(symbol){
+    document.getElementById('cryptoTitle').textContent = symbol;
+    document.getElementById('cryptoAddress').textContent = currentUser.addresses[symbol];
+    document.getElementById('cryptoPrice').textContent = getPriceFor(symbol).toFixed(2);
+    document.getElementById('buyAmount').value = 1;
+    document.getElementById('investAmount').value = 1;
+    document.getElementById('sellAmount').value = 1;
+    document.getElementById('withdrawAmount').value = 1;
+    document.getElementById('dashboard').style.display='none';
+    document.getElementById('cryptoView').classList.remove('hidden');
+    document.querySelector('.back-arrow').style.display='inline';
+  }
+
+  function showDashboard(){
+    document.getElementById('cryptoView').classList.add('hidden');
+    document.getElementById('dashboard').style.display='block';
+    document.querySelector('.back-arrow').style.display='none';
+    refreshUserDataFromServer();
+  }
+
+  /***** Price logic & history (simple) */
+  // generate initial price if missing; price store in /prices/{symbol}
+  async function ensurePrices(){
+    for(const symbol of cryptos){
+      const ref = db.collection('prices').doc(symbol);
+      const doc = await ref.get();
+      if(!doc.exists){
+        await ref.set({symbol, price: (Math.random()*2 + 0.5).toFixed(2), history: [], updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+      }
+    }
+  }
+
+  function getPriceFor(symbol){
+    // fallback random if not loaded locally (real code would read from Firestore)
+    // We'll read live price from Firestore when needed, but here's a quick sync read:
+    // (for now, return random stable-ish)
+    return (1 + (symbol.length % 7) * 0.13); // deterministic-ish placeholder
+  }
+
+  /***** BUY crypto (ask HenryBank to charge user euros) */
+  async function startBuy(){
+    if(!currentUser){ alert("Kirjaudu sisään."); return; }
+    const symbol = document.getElementById('cryptoTitle').textContent;
+    const amount = Number(document.getElementById('buyAmount').value);
+    if(!amount || amount<=0){ alert("Anna määrä > 0"); return; }
+
+    // create a unique token and a transaction doc in Firestore
+    const token = Math.random().toString(36).substring(2,12);
+    const price = getPriceFor(symbol);
+    const tx = {
+      userId: currentUser.id,
+      symbol,
+      amount,
+      price,
+      token,
+      type: "buy_crypto",
+      status: "pending",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    await db.collection('transactions').doc(token).set(tx);
+
+    // redirect to HenryBankki (with token) - user will login there and pay
+    const hbUrl = "https://henrybank-bw4y.onrender.com?token="+token;
+    window.location.href = hbUrl;
+  }
+
+  /***** BUY investment (uses wallet crypto) */
+  async function buyInvestment(){
+    if(!currentUser){ alert("Kirjaudu sisään."); return; }
+    const symbol = document.getElementById('cryptoTitle').textContent;
+    const amount = Number(document.getElementById('investAmount').value);
+    if(!amount || amount<=0) { alert("Anna määrä >0"); return; }
+    // check wallet balance
+    const userDocRef = db.collection('users').doc(currentUser.id);
+    const doc = await userDocRef.get();
+    const u = doc.data();
+    if((u.wallet[symbol]||0) < amount){ alert("Ei tarpeeksi cryptoa walletissa."); return; }
+    // deduct wallet and add to portfolio
+    const newWallet = {...u.wallet}; newWallet[symbol] = (newWallet[symbol]||0) - amount;
+    const newPortfolio = {...u.portfolio}; newPortfolio[symbol] = (newPortfolio[symbol]||0) + amount;
+    await userDocRef.update({wallet:newWallet, portfolio:newPortfolio});
+    await refreshUserDataFromServer();
+  }
+
+  /***** SELL investment -> returns crypto to wallet at current price (profit calculation happens in history) */
+  async function sellInvestment(){
+    if(!currentUser){ alert("Kirjaudu sisään."); return; }
+    const symbol = document.getElementById('cryptoTitle').textContent;
+    const amount = Number(document.getElementById('sellAmount').value);
+    if(!amount || amount<=0){ alert("Anna määrä >0"); return; }
+    const userDocRef = db.collection('users').doc(currentUser.id);
+    const doc = await userDocRef.get();
+    const u = doc.data();
+    if((u.portfolio[symbol]||0) < amount){ alert("Ei tarpeeksi sijoituksia."); return; }
+    // move from portfolio to wallet
+    const newWallet = {...u.wallet}; newWallet[symbol] = (newWallet[symbol]||0) + amount;
+    const newPortfolio = {...u.portfolio}; newPortfolio[symbol] = (newPortfolio[symbol]||0) - amount;
+    await userDocRef.update({wallet:newWallet, portfolio:newPortfolio});
+    await refreshUserDataFromServer();
+  }
+
+  /***** WITHDRAW (user wants to convert crypto -> euros via HenryBankki) */
+  async function startWithdraw(){
+    if(!currentUser){ alert("Kirjaudu sisään."); return; }
+    const symbol = document.getElementById('cryptoTitle').textContent;
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    if(!amount || amount<=0) { alert("Anna määrä >0"); return; }
+    // ensure wallet has enough
+    const userDocRef = db.collection('users').doc(currentUser.id);
+    const doc = await userDocRef.get();
+    const u = doc.data();
+    if((u.wallet[symbol]||0) < amount){ alert("Ei tarpeeksi cryptoa walletissa."); return; }
+    // deduct immediately to 'lock' funds while pending
+    const newWallet = {...u.wallet}; newWallet[symbol] = (newWallet[symbol]||0) - amount;
+    await userDocRef.update({wallet:newWallet});
+    await refreshUserDataFromServer();
+
+    // create transaction doc with token and redirect to HenryBankki
+    const token = Math.random().toString(36).substring(2,12);
+    const tx = {
+      userId: currentUser.id,
+      symbol,
+      amount,
+      price: getPriceFor(symbol),
+      token,
+      type: "withdraw",
+      status: "pending",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    await db.collection('transactions').doc(token).set(tx);
+    // redirect
+    window.location.href = "https://henrybank-bw4y.onrender.com?token="+token;
+  }
+
+  /***** Listen for transactions concerning this user; update UI when status changes */
+  function listenUserTransactions(uid){
+    if(unsubscribeTxListener) unsubscribeTxListener();
+    unsubscribeTxListener = db.collection('transactions').where('userId','==',uid)
+      .orderBy('createdAt','desc').limit(20)
+      .onSnapshot(snap=>{
+        const arr = [];
+        snap.forEach(d=> arr.push(d.data()));
+        renderTxList(arr);
+        // handle completed txs: when tx becomes completed and type buy_crypto -> add crypto to wallet
+        arr.forEach(async tx=>{
+          if(tx.status === 'completed' && !tx._handled){
+            // mark handled in client memory (we rely on serverless; to avoid double-processing, transactions could have 'applied' flag)
+            // Here we'll check Firestore transaction 'applied' field
+            const docRef = db.collection('transactions').doc(tx.token);
+            const doc = await docRef.get();
+            const data = doc.data();
+            if(!data.applied){
+              if(data.type === 'buy_crypto'){
+                // add crypto amount to user's wallet
+                const userRef = db.collection('users').doc(uid);
+                await db.runTransaction(async t => {
+                  const userDoc = await t.get(userRef);
+                  const u = userDoc.data();
+                  const w = {...u.wallet}; w[data.symbol] = (w[data.symbol]||0) + data.amount;
+                  t.update(userRef, {wallet:w});
+                  t.update(docRef, {applied:true});
+                });
+                await refreshUserDataFromServer();
+              } else if(data.type === 'withdraw'){
+                // withdraw was already deducted earlier; HenryBank will have credited user's euroBalance in its DB if needed.
+                await docRef.update({applied:true});
+              }
+            }
+          }
+        });
+      });
+  }
+
+  function renderTxList(txArr){
+    const container = document.getElementById('txList');
+    if(!txArr.length) { container.innerText = "Ei transaktioita"; return; }
+    container.innerHTML = txArr.map(t=>`[${t.type}] ${t.symbol||''} ${t.amount||''} — ${t.status}`).join("<br>");
+  }
+
+  /***** On load: check localStorage for session */
+  (async function init(){
+    await ensurePrices();
+    const savedId = localStorage.getItem('hamster_user_id');
+    if(savedId){
+      const doc = await db.collection('users').doc(savedId).get();
+      if(doc.exists){
+        currentUser = {id: doc.id, ...doc.data()};
+        showMainUI();
+        listenUserTransactions(currentUser.id);
+      } else {
+        localStorage.removeItem('hamster_user_id');
+      }
+    }
+    // react to incoming redirect params: if status=success&token=xxx then just refresh
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('status')==='success' && params.get('token')){
+      // a payment was completed in HenryBank; we refresh user doc
+      if(currentUser) await refreshUserDataFromServer();
+    }
+  })();
+  </script>
 </body>
 </html>
