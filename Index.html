@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>HamsterInvest</title>
+<style>
+body { font-family: Arial; margin: 20px; }
+.back-arrow { position: fixed; top: 10px; left: 10px; cursor: pointer; font-size: 20px; }
+#dashboard { margin-top: 50px; }
+button { margin: 5px; padding: 10px; }
+.crypto-list { margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<button class="back-arrow" onclick="goBack()">⬅</button>
+<h1>HamsterInvest</h1>
+
+<div id="dashboard">
+  <h2>Wallet</h2>
+  <div id="wallet-display"></div>
+  
+  <h2>Portfolio / Sijoitukset</h2>
+  <div id="portfolio-display"></div>
+  
+  <h2>Toiminnot</h2>
+  <div class="crypto-list">
+    <button onclick="buyCrypto('WATTI', 10)">Osta 10 WATTI</button>
+    <button onclick="buyInvestment('WATTI', 5)">Osta sijoitus 5 WATTI</button>
+    <button onclick="sellInvestment('WATTI', 2)">Myy sijoitus 2 WATTI</button>
+    <button onclick="withdraw('WATTI', 5)">Nosta 5 WATTI</button>
+  </div>
+</div>
+
+<script>
+// Simuloitu wallet ja sijoitukset
+let wallet = { WATTI: 100, WUF: 50 };
+let portfolio = {};
+let adminSeed = "watti hamsteri häkki jauhomato auringonkukanSiemen karvaputkilo mökki juoksupyörä laiska ihana hyväluonteinen paras";
+
+// Päivitä dashboard
+function updateDashboard() {
+    document.getElementById('wallet-display').innerHTML = JSON.stringify(wallet);
+    document.getElementById('portfolio-display').innerHTML = JSON.stringify(portfolio);
+}
+
+// Toiminnot
+function buyCrypto(crypto, amount) {
+    wallet[crypto] = (wallet[crypto] || 0) + amount;
+    console.log("Ostettu " + amount + " " + crypto + " (simuloitu token validointi HenryBankista)");
+    updateDashboard();
+}
+
+function buyInvestment(crypto, amount) {
+    portfolio[crypto] = (portfolio[crypto] || 0) + amount;
+    console.log("Ostettu sijoitus " + amount + " " + crypto);
+    updateDashboard();
+}
+
+function sellInvestment(crypto, amount) {
+    if(portfolio[crypto] >= amount){
+        portfolio[crypto] -= amount;
+        wallet[crypto] = (wallet[crypto] || 0) + amount;
+        console.log("Myyty sijoitus " + amount + " " + crypto);
+    } else { console.log("Ei tarpeeksi sijoituksia"); }
+    updateDashboard();
+}
+
+function withdraw(crypto, amount){
+    if(wallet[crypto] >= amount){
+        wallet[crypto] -= amount;
+        console.log("Nosto " + amount + " " + crypto + " -> simuloitu siirto HenryBankkiin euroiksi");
+        redirectToHenryBank(amount, crypto);
+    } else { console.log("Ei tarpeeksi saldoa"); }
+    updateDashboard();
+}
+
+// Redirect HenryBankkiin
+function redirectToHenryBank(amount, crypto) {
+    let token = Math.random().toString(36).substring(2,15);
+    window.location.href = "https://henrybank-bw4y.onrender.com?token=" + token + "&amount=" + amount + "&crypto=" + crypto;
+}
+
+// Nuoli back
+function goBack() { window.history.back(); }
+
+// Alustetaan dashboard
+updateDashboard();
+</script>
+
+</body>
+</html>
